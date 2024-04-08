@@ -1,0 +1,57 @@
+#include <Arduino.h>
+
+// Define analog pins for X, Y, and Z outputs of the accelerometer
+const int xPin = A0; // Connect X output of accelerometer to analog pin A0
+const int yPin = A1; // Connect Y output of accelerometer to analog pin A1
+const int zPin = A2; // Connect Z output of accelerometer to analog pin A2
+const int muscleSensorPin = A3;
+const int buzzerPin = 9;
+
+// Define threshold values for muscle sensor activation
+const int threshold = 900;
+
+void setup() {
+  Serial.begin(115200); // Initialize serial communication for debugging
+
+  // Set the buzzer pin as an output
+  pinMode(buzzerPin, OUTPUT);
+}
+
+void loop() {
+  // Read analog values from accelerometer pins
+  int xValue = analogRead(xPin);
+  int yValue = analogRead(yPin);
+  int zValue = analogRead(zPin);
+  
+  // Convert analog values to acceleration values (in m/s^2)
+  int accelerationX = map(xValue, 0, 1023, -300, 300); // Sensitivity: 300 mV/g, 3.9mV/LSB
+  int accelerationY = map(yValue, 0, 1023, -300, 300);
+  int accelerationZ = map(zValue, 0, 1023, -300, 300);
+
+  // Print acceleration values to serial monitor
+  Serial.print("Acceleration X: ");
+  Serial.print(accelerationX);
+  Serial.print(" m/s^2\tAcceleration Y: ");
+  Serial.print(accelerationY);
+  Serial.print(" m/s^2\tAcceleration Z: ");
+  Serial.print(accelerationZ);
+  Serial.println(" m/s^2");
+
+  // Read the value from the muscle sensor
+  int sensorValue = analogRead(muscleSensorPin);
+
+  // Print the sensor value to the serial monitor
+  Serial.println(sensorValue);
+
+  // Check if the sensor value is above the threshold
+  if (sensorValue > threshold) {
+    // If the sensor value is above the threshold, activate the buzzer
+    digitalWrite(buzzerPin, HIGH);
+  } else {
+    // If the sensor value is below the threshold, turn off the buzzer
+    digitalWrite(buzzerPin, LOW);
+  }
+
+  // Add a small delay to avoid excessive readings
+  delay(100);
+}
