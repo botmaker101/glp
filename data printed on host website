@@ -1,0 +1,60 @@
+#include <Arduino.h>
+#include <WiFi.h>
+#include <WebServer.h>
+
+const char* ssid = "ssid";
+const char* password = "password";
+
+WebServer server(80);
+
+// Define analog pins for X, Y, and Z outputs of the accelerometer
+const int xPin = 34; // Connect X output of accelerometer to GPIO 34 on ESP32
+const int yPin = 35; // Connect Y output of accelerometer to GPIO 35 on ESP32
+const int zPin = 36; // Connect Z output of accelerometer to GPIO 36 on ESP32
+
+void setup() {
+  Serial.begin(115200); // Initialize serial communication for debugging
+
+  // Connect to Wi-Fi
+  Serial.println("Connecting to WiFi...");
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(1000);
+    Serial.println("Connecting to WiFi...");
+  }
+  Serial.println("Connected to WiFi");
+
+  // Start the web server
+  server.on("/", handleRoot);
+  server.begin();
+  Serial.println("HTTP server started");
+
+  // Print ESP32 IP address to Serial Monitor
+  Serial.print("ESP32 IP Address: ");
+  Serial.println(WiFi.localIP());
+}
+
+void loop() {
+  server.handleClient();
+}
+
+void handleRoot() {
+  // Read analog values from accelerometer pins
+  int xValue = analogRead(xPin);
+  int yValue = analogRead(yPin);
+  int zValue = analogRead(zPin);
+  
+  // Convert analog values to acceleration values (in m/s^2)
+  int accelerationX = map(xValue, 0, 4095, -3000, 3000) / 10; // Scaling to whole numbers
+  int accelerationY = map(yValue, 0, 4095, -3000, 3000) / 10;
+  int accelerationZ = map(zValue, 0, 4095, -3000, 3000) / 10;
+
+  // Send HTTP response with accelerometer data and IP address
+  server.send(200, "text/html", "<html><head><meta http-equiv='refresh' content='1'></head><body>"
+                                "<h1>Accelerometer Data</h1>"
+                                "<p>Acceleration X: " + String(accelerationX) + " m/s^2</p>"
+                                "<p>Acceleration Y: " + String(accelerationY) + " m/s^2</p>"
+                                "<p>Acceleration Z: " + String(accelerationZ) + " m/s^2</p>"
+                                "<p>ESP32 IP Address: " + WiFi.localIP().toString() + "</p>"
+                                "</body></html>");
+}
