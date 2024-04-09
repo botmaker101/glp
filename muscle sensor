@@ -1,0 +1,37 @@
+// Include the necessary libraries
+#include <Arduino.h>
+
+// Define the pin numbers for the muscle sensor and the buzzer
+const int muscleSensorPin = A0;
+const int buzzerPin = 9;
+
+// Define threshold values for muscle sensor activation
+const int threshold = 900;
+
+void setup() {
+  // Initialize serial communication
+  Serial.begin(9600);
+
+  // Set the buzzer pin as an output
+  pinMode(buzzerPin, OUTPUT);
+}
+
+void loop() {
+  // Read the value from the muscle sensor
+  int sensorValue = analogRead(muscleSensorPin);
+
+  // Print the sensor value to the serial monitor
+  Serial.println(sensorValue);
+
+  // Check if the sensor value is above the threshold
+  if (sensorValue > threshold) {
+    // If the sensor value is above the threshold, activate the buzzer
+    digitalWrite(buzzerPin, HIGH);
+  } else {
+    // If the sensor value is below the threshold, turn off the buzzer
+    digitalWrite(buzzerPin, LOW);
+  }
+
+  // Add a small delay to avoid excessive readings
+  delay(100);
+}
