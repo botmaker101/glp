@@ -1,0 +1,148 @@
+#include <Arduino.h>
+#include <WiFi.h>
+#include <WebServer.h>
+
+const char* ssid = "YourWiFiSSID";
+const char* password = "YourWiFiPassword";
+
+WebServer server(80);
+
+const int xPin = 34; // Connect X output of accelerometer to GPIO 34 on ESP32
+const int yPin = 35; // Connect Y output of accelerometer to GPIO 35 on ESP32
+const int zPin = 36; // Connect Z output of accelerometer to GPIO 36 on ESP32
+
+String accelData = ""; // String to hold accelerometer data
+const int numReadings = 10; // Number of readings to average
+int xReadings[numReadings];
+int yReadings[numReadings];
+int zReadings[numReadings];
+int xIndex = 0;
+int yIndex = 0;
+int zIndex = 0;
+bool paused = false; // Variable to track if data printing is paused
+
+void setup() {
+  Serial.begin(115200); // Initialize serial communication for debugging
+
+  // Connect to Wi-Fi
+  Serial.println("Connecting to WiFi...");
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(1000);
+    Serial.println("Connecting to WiFi...");
+  }
+  Serial.println("Connected to WiFi");
+
+  // Start the web server
+  server.on("/", HTTP_GET, handleRoot);
+  server.on("/updateData", HTTP_GET, handleUpdateData); // Added handler for AJAX request
+  server.on("/pause", HTTP_GET, handlePause); // Added handler for pausing data
+  server.on("/start", HTTP_GET, handleStart); // Added handler for starting data
+  server.begin();
+  Serial.println("HTTP server started");
+
+  // Print ESP32 IP address to Serial Monitor
+  Serial.print("ESP32 IP Address: ");
+  Serial.println(WiFi.localIP());
+  
+  // Initialize accelData string
+  accelData = "<ul>"
+              "<li>Acceleration X: 0 m/s^2</li>"
+              "<li>Acceleration Y: 0 m/s^2</li>"
+              "<li>Acceleration Z: 0 m/s^2</li>"
+              "</ul>";
+}
+
+void loop() {
+  server.handleClient();
+
+  if (!paused) { // Continue reading data only if not paused
+    // Read analog values from accelerometer pins
+    xReadings[xIndex] = analogRead(xPin);
+    yReadings[yIndex] = analogRead(yPin);
+    zReadings[zIndex] = analogRead(zPin);
+
+    // Update index for circular buffer
+    xIndex = (xIndex + 1) % numReadings;
+    yIndex = (yIndex + 1) % numReadings;
+    zIndex = (zIndex + 1) % numReadings;
+
+    // Calculate average readings
+    int xValue = 0;
+    int yValue = 0;
+    int zValue = 0;
+    for (int i = 0; i < numReadings; i++) {
+      xValue += xReadings[i];
+      yValue += yReadings[i];
+      zValue += zReadings[i];
+    }
+    xValue /= numReadings;
+    yValue /= numReadings;
+    zValue /= numReadings;
+    
+    int accelerationX = map(xValue, 0, 4095, -3000, 3000) / 10;
+    int accelerationY = map(yValue, 0, 4095, -3000, 3000) / 10;
+    int accelerationZ = map(zValue, 0, 4095, -3000, 3000) / 10;
+
+    // Update accelData string with the latest accelerometer readings
+    accelData = "<ul>"
+                "<li>Acceleration X: " + String(accelerationX) + " m/s^2</li>"
+                "<li>Acceleration Y: " + String(accelerationY) + " m/s^2</li>"
+                "<li>Acceleration Z: " + String(accelerationZ) + " m/s^2</li>"
+                "</ul>";
+  }
+}
+
+void handleRoot() {
+  // Construct HTML response with the latest accelerometer data and buttons
+  String htmlResponse = "<html><head><title>Accelerometer Data</title></head><body>"
+                        "<h1>Accelerometer Data</h1>"
+                        "<button id='pauseButton' onclick='pauseData()'>Pause</button>"
+                        "<button id='startButton' onclick='startData()' style='display: none;'>Start</button>"
+                        "<div id='data'>" + accelData + "</div>"
+                        "<script>"
+                        "function pauseData() {"
+                        "document.getElementById('pauseButton').style.display = 'none';"
+                        "document.getElementById('startButton').style.display = 'block';"
+                        "var xhr = new XMLHttpRequest();"
+                        "xhr.open('GET', '/pause', true);"
+                        "xhr.send();"
+                        "}"
+                        "function startData() {"
+                        "document.getElementById('startButton').style.display = 'none';"
+                        "document.getElementById('pauseButton').style.display = 'block';"
+                        "var xhr = new XMLHttpRequest();"
+                        "xhr.open('GET', '/start', true);"
+                        "xhr.send();"
+                        "}"
+                        "setInterval(function() {"
+                        "var xhr = new XMLHttpRequest();"
+                        "xhr.onreadystatechange = function() {"
+                        "if (this.readyState == 4 && this.status == 200) {"
+                        "document.getElementById('data').innerHTML = this.responseText;"
+                        "}"
+                        "};"
+                        "xhr.open('GET', '/updateData', true);"
+                        "xhr.send();"
+                        "}, 1000);"
+                        "</script>"
+                        "</body></html>";
+
+  // Send HTML response to client
+  server.send(200, "text/html", htmlResponse);
+}
+
+void handleUpdateData() {
+  // Send only the latest accelerometer data as response
+  server.send(200, "text/plain", accelData);
+}
+
+void handlePause() {
+  // Set paused flag to true
+  paused = true;
+}
+
+void handleStart() {
+  // Set paused flag to false
+  paused = false;
+}
